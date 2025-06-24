@@ -46,9 +46,9 @@ def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024,
     retries = 0
     while True:
         try:
-            r = requests.post('https://api.openai.com/v1/chat/completions',
+            r = requests.post('https://api.deepseek.com/chat/completions',
                 headers = {
-                    "Authorization": f"Bearer {config.OPENAI_KEY}",
+                    "Authorization": f"Bearer {config.DEEPSEEK_API_KEY}",
                     "Content-Type": "application/json"
                 },
                 json = payload,
@@ -68,18 +68,20 @@ def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024,
 
 def instructGPT_logprobs(prompt, temperature=0.7):
     payload = {
-        "prompt": prompt,
-        "model": "text-davinci-003",
+        "messages": [{"role": "user", "content": prompt}],
+        "model": "deepseek-chat", # Assuming a default chat model, replace if needed
         "temperature": temperature,
         "max_tokens": 1,
-        "logprobs": 1,
-        "echo": True
+        "logprobs": 1, # Note: Check if DeepSeek supports 'logprobs' and 'echo' in chat completions
+        "echo": True   # If not, these might need to be removed or handled differently
     }
+    # Add a placeholder for retries, as it was in the original code but not initialized here.
+    retries = 0
     while True:
         try:
-            r = requests.post('https://api.openai.com/v1/completions',
+            r = requests.post('https://api.deepseek.com/chat/completions',
                 headers = {
-                    "Authorization": f"Bearer {config.OPENAI_KEY}",
+                    "Authorization": f"Bearer {config.DEEPSEEK_API_KEY}", # Assuming DEEPSEEK_API_KEY will be in config
                     "Content-Type": "application/json"
                 },
                 json = payload,
