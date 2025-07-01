@@ -28,12 +28,56 @@ def parse_sectioned_prompt(s):
     return result
 
 
-def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024, 
-                  presence_penalty=0, frequency_penalty=0, logit_bias={}, timeout=10):
+def chatgpt(
+        prompt,
+        temperature: float = 0.7,
+        n: int = 1,
+        top_p: float = 1,
+        stop=None,
+        max_tokens: int = 1024,
+        presence_penalty: float = 0,
+        frequency_penalty: float = 0,
+        logit_bias: dict = {},
+        timeout: int = 10,
+        provider: str | None = None,
+        model: str | None = None):
+    """统一的对话接口，兼容 OpenAI 与 DeepSeek。
+
+    参数说明
+    --------
+    provider : str, 可选
+        指定使用的服务提供商，支持 "openai" 与 "deepseek"。默认为
+        ``config.DEFAULT_PROVIDER``（若未配置则为 ``"openai"``）。
+    model : str, 可选
+        指定具体模型名称。若未传入，则根据 provider 选择默认模型：
+        - openai: ``gpt-3.5-turbo``
+        - deepseek: ``deepseek-chat``
+    其他参数与原先保持一致。
+    """
+
+    # 1. 解析 provider
+    _provider = (provider or getattr(config, 'DEFAULT_PROVIDER', 'openai')).lower()
+
+    if _provider == 'deepseek':
+        api_url = 'https://api.deepseek.com/chat/completions'
+        api_key = getattr(config, 'DEEPSEEK_KEY', None)
+        if api_key is None or api_key.strip() == "YOUR DEEPSEEK KEY":
+            raise ValueError("DEEPSEEK_KEY 未在 config.py 中设置。")
+        default_model = 'deepseek-chat'
+    elif _provider == 'openai':
+        api_url = 'https://api.openai.com/v1/chat/completions'
+        api_key = getattr(config, 'OPENAI_KEY', None)
+        if api_key is None or api_key.strip() == "YOUR KEY":
+            raise ValueError("OPENAI_KEY 未在 config.py 中设置。")
+        default_model = 'gpt-3.5-turbo'
+    else:
+        raise ValueError(f"未知 provider: {_provider}. 目前仅支持 'openai' 与 'deepseek'.")
+
+    # 2. 组装请求 payload
     messages = [{"role": "user", "content": prompt}]
     payload = {
         "messages": messages,
-        "model": "gpt-3.5-turbo",
+        "model": model or default_model,
         "temperature": temperature,
         "n": n,
         "top_p": top_p,
@@ -43,15 +87,18 @@ def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024,
         "frequency_penalty": frequency_penalty,
         "logit_bias": logit_bias
     }
+
+    # 3. 重试机制
     retries = 0
     while True:
         try:
-            r = requests.post('https://api.openai.com/v1/chat/completions',
-                headers = {
-                    "Authorization": f"Bearer {config.OPENAI_KEY}",
+            r = requests.post(
+                api_url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 },
-                json = payload,
+                json=payload,
                 timeout=timeout
             )
             if r.status_code != 200:
@@ -62,6 +109,7 @@ def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024,
         except requests.exceptions.ReadTimeout:
             time.sleep(1)
             retries += 1
+
     r = r.json()
     return [choice['message']['content'] for choice in r['choices']]
 
